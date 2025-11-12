@@ -9,28 +9,9 @@ app.use(helmet());
 app.use(express.json({ limit: "200kb" }));
 app.use(rateLimit({ windowMs: 60_000, max: 60 }));
 
-// --- Query-param auth (Option B) ---
-// Make GET / and /health public so connector creation can validate the base URL.
-// Keep /app public for static UI if you serve it.
-app.use((req, res, next) => {
-  const isPublic =
-      (req.method === "GET" && (req.path === "/" || req.path === "/health")) ||
-      req.path.startsWith("/app");
-
-  if (isPublic) return next();
-
-  const key = (req.query.key as string) || "";
-  const expected = process.env.MCP_AUTH_TOKEN || "";
-
-  if (key && expected && key === expected) return next();
-  return res.status(401).json({ error: "Unauthorized" });
-});
-
 // -----------------------------------------------------------------------------
-// ✅ Routes
+// ✅ Public endpoints for connector validation
 // -----------------------------------------------------------------------------
-
-// Public: GET /, /health, /app/*, and preflight/HEAD checks
 app.get("/", (_req, res) => {
   res.json({
              ok: true,
@@ -43,22 +24,30 @@ app.get("/", (_req, res) => {
              }
            });
 });
-app.get("/health", (_req, res) => res.json({ ok: true }));
-app.head("/", (_req, res) => res.status(200).end());
-app.options("/", (_req, res) => res.status(204).end());
 
-// ✅ Auth ONLY for /tools/*
+app.get("/health", (_req, res) => res.json({ ok: true }));
+app.head("/", (_req, res) => res.sendStatus(200));
+app.options("/", (_req, res) => res.sendStatus(204));
+
+// -----------------------------------------------------------------------------
+// ✅ Protect ONLY /tools/* endpoints with ?key=<token>
+// -----------------------------------------------------------------------------
 app.use((req, res, next) => {
-  if (!req.path.startsWith("/tools/")) return next(); // public for non-tools
+  if (!req.path.startsWith("/tools/")) return next();
 
   const key = (req.query.key as string) || "";
   const expected = process.env.MCP_AUTH_TOKEN || "";
+
   if (key && expected && key === expected) return next();
 
   return res.status(401).json({ error: "Unauthorized" });
 });
 
-// Create Job endpoint
+// -----------------------------------------------------------------------------
+// ✅ Tool endpoints
+// -----------------------------------------------------------------------------
+
+// Create Job
 app.post("/tools/create_job", (req: Request, res: Response) => {
   const { title, location, company, description } = (req.body ?? {}) as {
     title?: string;
@@ -74,7 +63,7 @@ app.post("/tools/create_job", (req: Request, res: Response) => {
   return res.json({ job_id: randomUUID() });
 });
 
-// Source Candidates endpoint
+// Source Candidates
 app.post("/tools/source_candidates", (req: Request, res: Response) => {
   const { job_id } = (req.body ?? {}) as { job_id?: string };
   if (!job_id) return res.status(400).json({ error: "job_id required" });
