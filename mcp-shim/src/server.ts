@@ -10,6 +10,16 @@ app.use(express.json({ limit: "200kb" }));
 app.use(rateLimit({ windowMs: 60_000, max: 60 }));
 
 // Require bearer token for all routes
+// Allow token via ?key=... query param
+app.use((req, res, next) => {
+  const token =
+      (req.query.key as string) ||
+      (req.headers.authorization?.replace("Bearer ", "") ?? "");
+
+  if (token === process.env.MCP_AUTH_TOKEN) return next();
+  if (req.path === "/health") return res.json({ ok: true });
+  res.status(401).json({ error: "Unauthorized" });
+});
 app.use(auth(true));
 
 // Health
