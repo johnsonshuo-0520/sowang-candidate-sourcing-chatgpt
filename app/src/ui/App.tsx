@@ -1,163 +1,247 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState } from "react";
 
-const BASE = import.meta.env.VITE_MCP_BASE_URL || 'http://localhost:3001'
+/**
+ * Mock-first App UI:
+ * - Set VITE_USE_MOCK=true (or omit) to run fully offline in the browser.
+ * - Set VITE_USE_MOCK=false and VITE_MCP_BASE_URL to call your real MCP server.
+ *
+ * Usage:
+ *  - cd app
+ *  - echo "VITE_USE_MOCK=true" > .env.local
+ *  - npm run dev
+ */
 
-type CreateJobInput = { title: string; location: string; company: string; description: string }
-type CreateJobOutput = { job_id: string }
-type SourceCandidatesInput = { job_id: string }
-type Candidate = { candidate_id: string; name: string; company: string; title: string; location: string; qualifications: string[] }
+const USE_MOCK = (import.meta.env.VITE_USE_MOCK ?? "true").toString() !== "false";
+const BASE = import.meta.env.VITE_MCP_BASE_URL || "http://localhost:3001";
+
+type CreateJobInput = { title: string; location: string; company: string; description: string };
+type CreateJobOutput = { job_id: string };
+type SourceCandidatesInput = { job_id: string };
+type Candidate = { candidate_id: string; name: string; company: string; title: string; location: string; qualifications: string[] };
 
 async function api<T>(path: string, body: unknown): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  if (!r.ok) throw new Error(await r.text())
-  return r.json() as Promise<T>
+    const r = await fetch(`${BASE}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json() as Promise<T>;
 }
 
-function LeftItem({ c, active, onClick }: { c: Candidate, active: boolean, onClick: ()=>void }){
-  return (
-    <div className={`card list-item ${active ? 'active':''}`} onClick={onClick}>
-      <div className="card-body">
-        <h3 className="title">{c.title}</h3>
-        <div className="sub">{c.company} · {c.location}</div>
-        <div className="meta">
-          <span className="pill">On-site</span>
-          <span className="pill">Full-time</span>
-        </div>
-      </div>
-    </div>
-  )
+/* ----------------- Mock implementations ----------------- */
+
+function uuidv4() {
+    // simple uuid generator for frontend-only mock
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+        const r = (Math.random() * 16) | 0;
+        // eslint-disable-next-line eqeqeq
+        const v = c == "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
 }
 
-function RightPane({ c }: { c: Candidate | null }){
-  if(!c) return (
-    <div className="card">
-      <div className="card-body">
-        <div className="small">Select a candidate on the left to view details.</div>
-      </div>
-    </div>
-  )
-  return (
-    <div className="card right-pane">
-      <div className="card-body">
-        <div className="header-row">
-          <div>
-            <h3 className="title">{c.title}</h3>
-            <div className="sub">{c.company} · {c.location}</div>
-          </div>
-          <div className="cta">
-            <button
-                className="btn"
-                onClick={() => alert('Redirecting to LinkedIn (stub)')}
-            >
-              Log in to see full profile
-            </button>
-          </div>
-        </div>
-
-        <div className="section">
-          <h4>Why a match</h4>
-          <ul className="ul">
-            {c.qualifications.map((q,i)=>(<li key={i}>{q}</li>))}
-          </ul>
-        </div>
-
-        <div className="hr" />
-      </div>
-    </div>
-  )
+function pick<T>(arr: T[]) {
+    return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export default function App(){
-  const [title, setTitle] = useState('Senior Backend Engineer')
-  const [location, setLocation] = useState('Mountain View, CA, US')
-  const [company, setCompany] = useState('Acme Systems')
-  const [description, setDescription] = useState('Responsibilities: Own ingestion pipelines...\nRequirements: Java, Kafka, Pinot...')
-  const [jobId, setJobId] = useState<string | null>(null)
-  const [cands, setCands] = useState<Candidate[] | null>(null)
-  const [activeIndex, setActiveIndex] = useState<number>(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+function makeMockQualifications(title: string) {
+    const techs = ["Java", "Scala", "Go", "Python", "Kafka", "Pinot", "Trino", "Redis", "MySQL", "Kubernetes", "AWS", "GCP"];
+    const verbs = [
+        `Built ingestion pipelines using ${pick(techs)}`,
+        `Experienced with ${pick(techs)} and streaming systems`,
+        `Designed low-latency ranking pipelines`,
+        `Worked on nearline dedupe systems`,
+        `Owned SLAs and monitoring for critical jobs`,
+        `Familiar with data modeling and distributed systems`,
+    ];
+    const quals = [pick(verbs), pick(verbs), `Relevant title: ${title}`];
+    // dedupe and return
+    return Array.from(new Set(quals));
+}
 
-  const canCreate = useMemo(()=> [title, location, company, description].every(x => x && x.trim().length > 0), [title, location, company, description])
-  const active = cands && cands.length ? cands[Math.min(activeIndex, cands.length - 1)] : null
+function sourceCandidatesMock(job_id: string, count = 6): { candidates: Candidate[] } {
+    const baseTitles = ["Senior Backend Engineer", "Staff Data Engineer", "Senior Software Engineer", "Principal Backend Engineer", "Data Platform Engineer"];
+    const companies = ["Acme Systems", "DataWorks.io", "BlueOcean Labs", "Nimbus Solutions", "VertexData"];
+    const locations = ["San Francisco, CA, US", "Mountain View, CA, US", "New York, NY, US", "Berlin, DE", "London, UK", "Bengaluru, IN"];
 
-  async function onCreateJob(){
-    setError(null); setLoading(true)
-    try{
-      const out = await api<CreateJobOutput>('/tools/create_job', { title, location, company, description } as CreateJobInput)
-      setJobId(out.job_id)
-      setCands(null)
-    }catch(e:any){ setError(e.message) }finally{ setLoading(false) }
-  }
+    const candidates: Candidate[] = Array.from({ length: count }).map((_, i) => {
+        const title = pick(baseTitles);
+        return {
+            candidate_id: `cand_${i + 1}_${job_id.slice(0, 8)}`,
+            name: `candidate_${i + 1}`, // masked alias on purpose
+            company: pick(companies),
+            title,
+            location: pick(locations),
+            qualifications: makeMockQualifications(title),
+        };
+    });
 
-  async function onSource(){
-    if(!jobId) return
-    setError(null); setLoading(true)
-    try{
-      const out = await api<{candidates: Candidate[]}>('/tools/source_candidates', { job_id: jobId } as SourceCandidatesInput)
-      setCands(out.candidates)
-      setActiveIndex(0)
-    }catch(e:any){ setError(e.message) }finally{ setLoading(false) }
-  }
+    return { candidates };
+}
 
-  return (
-    <div className="container">
-      {/* Filter chips like LinkedIn */}
-      <div className="header">
-        <div className="filter-chip">Jobs</div>
-        <div className="filter-chip">Date posted <span className="x">×</span></div>
-        <div className="filter-chip">Remote</div>
-        <div className="filter-chip">Backend</div>
-        <div className="filter-chip">Full-time</div>
-        <div className="filter-chip">In my network</div>
-      </div>
+async function createJobMock(input: CreateJobInput): Promise<CreateJobOutput> {
+    // emulate a small delay like a network call
+    await new Promise((res) => setTimeout(res, 220));
+    const id = uuidv4();
+    console.log("[mock] create_job ->", id, input.title);
+    return { job_id: id };
+}
 
-      <div className="card">
-        <div className="card-body">
-          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px'}}>
-            <div>
-              <label className="small">Job title</label>
-              <input className="input" style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:'8px'}} value={title} onChange={e=>setTitle(e.target.value)} />
+/* ----------------- UI Components ----------------- */
+
+function LeftItem({ c, active, onClick }: { c: Candidate; active: boolean; onClick: () => void }) {
+    return (
+        <div className={`card list-item ${active ? "active" : ""}`} onClick={onClick} role="button" tabIndex={0}>
+            <div className="card-body">
+                <h3 className="title">{c.title}</h3>
+                <div className="sub">{c.company} · {c.location}</div>
             </div>
-            <div>
-              <label className="small">Location</label>
-              <input className="input" style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:'8px'}} value={location} onChange={e=>setLocation(e.target.value)} />
-            </div>
-            <div>
-              <label className="small">Company</label>
-              <input className="input" style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:'8px'}} value={company} onChange={e=>setCompany(e.target.value)} />
-            </div>
-            <div style={{gridColumn:'1 / -1'}}>
-              <label className="small">Job description</label>
-              <textarea className="input" rows={4} style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:'8px'}} value={description} onChange={e=>setDescription(e.target.value)} />
-            </div>
-          </div>
-
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:12}}>
-            <div className="small">{jobId ? <>Created job <strong>{jobId.slice(0,8)}…</strong></> : 'Not created'}</div>
-            <div style={{display:'flex',gap:8}}>
-              <button className="btn secondary" disabled={!canCreate || loading} onClick={onCreateJob}>Create job</button>
-              <button className="btn" disabled={!jobId || loading} onClick={onSource}>Source candidates</button>
-            </div>
-          </div>
-          {error && <div style={{color:'#b00020', marginTop:8}}>{error}</div>}
         </div>
-      </div>
+    );
+}
 
-      <div style={{height:12}} />
-
-      <div className="grid">
-        <div className="left-list">
-          {(cands ?? []).map((c, i) => (
-            <LeftItem key={c.candidate_id} c={c} active={i===activeIndex} onClick={()=>setActiveIndex(i)} />
-          ))}
-          {!cands && <div className="card"><div className="card-body small">No results yet — create a job and click “Source candidates”.</div></div>}
+function RightPane({ c }: { c: Candidate | null }) {
+    if (!c) return (
+        <div className="card">
+            <div className="card-body">
+                <div className="small">Select a candidate on the left to view details.</div>
+            </div>
         </div>
+    );
+    return (
+        <div className="card right-pane">
+            <div className="card-body">
+                <div className="header-row">
+                    <div>
+                        <h3 className="title">{c.title}</h3>
+                        <div className="sub">{c.company} · {c.location}</div>
+                    </div>
+                </div>
 
-        <RightPane c={active} />
-      </div>
+                <div className="section">
+                    <h4>Why a match</h4>
+                    <ul className="ul">
+                        {c.qualifications.map((q, i) => (<li key={i}>{q}</li>))}
+                    </ul>
+                </div>
 
-      <div style={{height:16}}/>
-    </div>
-  )
+                <div className="hr" />
+
+                <div style={{ marginTop: 16 }}>
+                    <button className="btn" style={{ width: "100%", borderRadius: 8 }} onClick={() => alert("Redirecting to LinkedIn (stub)")}>
+                        Log in to see full profile
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ----------------- Main App ----------------- */
+
+export default function App() {
+    const [title, setTitle] = useState("Senior Backend Engineer");
+    const [location, setLocation] = useState("Mountain View, CA, US");
+    const [company, setCompany] = useState("Acme Systems");
+    const [description, setDescription] = useState("Responsibilities: Own ingestion pipelines...\nRequirements: Java, Kafka, Pinot...");
+    const [jobId, setJobId] = useState<string | null>(null);
+    const [cands, setCands] = useState<Candidate[] | null>(null);
+    const [activeIndex, setActiveIndex] = useState<number>(0);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const canCreate = useMemo(() => [title, location, company, description].every((x) => x && x.trim().length > 0), [title, location, company, description]);
+    const active = cands && cands.length ? cands[Math.min(activeIndex, cands.length - 1)] : null;
+
+    async function onCreateJob() {
+        setError(null); setLoading(true);
+        try {
+            if (USE_MOCK) {
+                const out = await createJobMock({ title, location, company, description });
+                setJobId(out.job_id);
+                setCands(null);
+            } else {
+                const out = await api<CreateJobOutput>("/tools/create_job", { title, location, company, description } as CreateJobInput);
+                setJobId(out.job_id);
+                setCands(null);
+            }
+        } catch (e: any) {
+            setError(e?.message ?? String(e));
+        } finally { setLoading(false); }
+    }
+
+    async function onSource() {
+        if (!jobId) return;
+        setError(null); setLoading(true);
+        try {
+            if (USE_MOCK) {
+                // produce 6 mock candidates locally
+                const out = sourceCandidatesMock(jobId, 6);
+                setCands(out.candidates);
+                setActiveIndex(0);
+            } else {
+                const out = await api<{ candidates: Candidate[] }>("/tools/source_candidates", { job_id: jobId } as SourceCandidatesInput);
+                setCands(out.candidates);
+                setActiveIndex(0);
+            }
+        } catch (e: any) {
+            setError(e?.message ?? String(e));
+        } finally { setLoading(false); }
+    }
+
+    return (
+        <div className="container">
+            <div className="header">
+                <div className="filter-chip">Jobs</div>
+                <div className="filter-chip">Date posted <span className="x">×</span></div>
+                <div className="filter-chip">Backend</div>
+                <div className="filter-chip">Full-time</div>
+            </div>
+
+            <div className="card">
+                <div className="card-body">
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px" }}>
+                        <div>
+                            <label className="small">Job title</label>
+                            <input className="input" style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--border)", borderRadius: "8px" }} value={title} onChange={(e) => setTitle(e.target.value)} />
+                        </div>
+                        <div>
+                            <label className="small">Location</label>
+                            <input className="input" style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--border)", borderRadius: "8px" }} value={location} onChange={(e) => setLocation(e.target.value)} />
+                        </div>
+                        <div>
+                            <label className="small">Company</label>
+                            <input className="input" style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--border)", borderRadius: "8px" }} value={company} onChange={(e) => setCompany(e.target.value)} />
+                        </div>
+                        <div style={{ gridColumn: "1 / -1" }}>
+                            <label className="small">Job description</label>
+                            <textarea className="input" rows={4} style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--border)", borderRadius: "8px" }} value={description} onChange={(e) => setDescription(e.target.value)} />
+                        </div>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+                        <div className="small">{jobId ? <>Created job <strong>{jobId.slice(0, 8)}…</strong></> : 'Not created'}</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <button className="btn secondary" disabled={!canCreate || loading} onClick={onCreateJob}>Create job</button>
+                            <button className="btn" disabled={!jobId || loading} onClick={onSource}>Source candidates</button>
+                        </div>
+                    </div>
+                    {error && <div style={{ color: "#b00020", marginTop: 8 }}>{error}</div>}
+                </div>
+            </div>
+
+            <div style={{ height: 12 }} />
+
+            <div className="grid">
+                <div className="left-list">
+                    {(cands ?? []).map((c, i) => (
+                        <LeftItem key={c.candidate_id} c={c} active={i === activeIndex} onClick={() => setActiveIndex(i)} />
+                    ))}
+                    {!cands && <div className="card"><div className="card-body small">No results yet — create a job and click “Source candidates”.</div></div>}
+                </div>
+
+                <RightPane c={active} />
+            </div>
+
+            <div style={{ height: 16 }} />
+            <div className="banner">PII policy: This surface only shows masked aliases (e.g., <span className="mask">candidate_123</span>). Full profiles available on LinkedIn via deep link outside ChatGPT.</div>
+        </div>
+    );
 }
