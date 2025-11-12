@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 
 const app = express();
 
-// tiny request logger (helps you see if the connector hits your server)
+// tiny request logger
 app.use((req: Request, _res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
@@ -12,23 +12,48 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 
 app.use(express.json({ limit: "200kb" }));
 
-// ---- Public root & health (as light as possible)
+// ---- Public root & health ----
+
+// GET /  (simple metadata)
 app.get("/", (_req: Request, res: Response) => {
   res.setHeader("Cache-Control", "no-store");
-  res.status(200).json({ ok: true, name: "sowang-mcp-shim", version: "1.0" });
+  res.status(200).json({
+                         ok: true,
+                         name: "sowang-mcp-shim",
+                         version: "1.0"
+                       });
 });
+
+// ✅ NEW: POST /  (connector probe)
+app.post("/", (_req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).json({
+                         ok: true,
+                         name: "sowang-mcp-shim",
+                         version: "1.0",
+                         mode: "probe"
+                       });
+});
+
 app.head("/", (_req: Request, res: Response) => res.sendStatus(200));
 app.options("/", (_req: Request, res: Response) => res.sendStatus(204));
+
 app.get("/health", (_req: Request, res: Response) => res.json({ ok: true }));
 
-// ---- Tools (public, since auth is off)
+// ---- Tool endpoints (no auth) ----
+
 app.post("/tools/create_job", (req: Request, res: Response) => {
   const { title, location, company, description } = (req.body ?? {}) as {
-    title?: string; location?: string; company?: string; description?: string;
+    title?: string;
+    location?: string;
+    company?: string;
+    description?: string;
   };
+
   if (!title || !location || !company || !description) {
     return res.status(400).json({ error: "Missing required fields" });
   }
+
   return res.json({ job_id: randomUUID() });
 });
 
@@ -62,6 +87,5 @@ const server = app.listen(PORT, () => {
   console.log(`MCP shim running on :${PORT}`);
 });
 
-// keep connections alive; some proxies prefer explicit timeouts
-server.keepAliveTimeout = 65000; // 65s
-server.headersTimeout = 66000;   // 66s
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
