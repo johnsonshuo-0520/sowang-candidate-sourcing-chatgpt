@@ -1,0 +1,47 @@
+openapi: 3.1.0
+info:
+  title: LinkedIn Candidate Sourcing (Mock)
+  version: 0.1.0
+paths:
+  /tools/create_job:
+    post:
+      operationId: createJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateJobInput'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateJobOutput'
+  /tools/source_candidates:
+    post:
+      operationId: sourceCandidates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceCandidatesInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceCandidatesOutput'
+components:
+  schemas:
+    CreateJobInput:
+      $ref: ./schemas/create_job.input.json
+    CreateJobOutput:
+      $ref: ./schemas/create_job.output.json
+    SourceCandidatesInput:
+      $ref: ./schemas/source_candidates.input.json
+    SourceCandidatesOutput:
+      $ref: ./schemas/source_candidates.output.json

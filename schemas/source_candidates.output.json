@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/source_candidates.output.json",
+  "type": "object",
+  "required": [
+    "candidates"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "name",
+          "company",
+          "title",
+          "location",
+          "qualifications"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "candidate_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "Masked alias like candidate_123"
+          },
+          "company": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "qualifications": {
+            "type": "array",
+            "minItems": 0,
+            "items": {
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        }
+      }
+    }
+  }
+}

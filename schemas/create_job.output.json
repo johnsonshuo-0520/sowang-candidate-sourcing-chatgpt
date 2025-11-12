@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/create_job.output.json",
+  "type": "object",
+  "required": [
+    "job_id"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "description": "Canonical job identifier (stringified long or UUID)"
+    }
+  }
+}

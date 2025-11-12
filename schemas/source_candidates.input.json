@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/source_candidates.input.json",
+  "type": "object",
+  "required": [
+    "job_id"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "job_id": {
+      "type": "string"
+    }
+  }
+}
