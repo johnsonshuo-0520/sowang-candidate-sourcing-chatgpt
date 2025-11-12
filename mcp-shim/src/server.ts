@@ -9,18 +9,20 @@ app.use(helmet());
 app.use(express.json({ limit: "200kb" }));
 app.use(rateLimit({ windowMs: 60_000, max: 60 }));
 
-// -----------------------------------------------------------------------------
-// ✅ Option B: allow auth via ?key=<TOKEN> query param (for ChatGPT connectors)
-// -----------------------------------------------------------------------------
+// --- Query-param auth (Option B) ---
+// Make GET / and /health public so connector creation can validate the base URL.
+// Keep /app public for static UI if you serve it.
 app.use((req, res, next) => {
-  // Make /health and /app public
-  if (req.path === "/health" || req.path.startsWith("/app")) return next();
+  const isPublic =
+      (req.method === "GET" && (req.path === "/" || req.path === "/health")) ||
+      req.path.startsWith("/app");
 
-  const queryKey = (req.query.key as string) || "";
+  if (isPublic) return next();
+
+  const key = (req.query.key as string) || "";
   const expected = process.env.MCP_AUTH_TOKEN || "";
 
-  if (queryKey && expected && queryKey === expected) return next();
-
+  if (key && expected && key === expected) return next();
   return res.status(401).json({ error: "Unauthorized" });
 });
 
@@ -30,6 +32,20 @@ app.use((req, res, next) => {
 
 // Health endpoint (always public)
 app.get("/health", (_req: Request, res: Response) => res.json({ ok: true }));
+
+// Root endpoint (public; helps connector creation validation)
+app.get("/", (_req, res) => {
+  res.json({
+             ok: true,
+             name: "sowang-mcp-shim",
+             version: "1.0",
+             endpoints: {
+               health: "/health",
+               create_job: "/tools/create_job",
+               source_candidates: "/tools/source_candidates"
+             }
+           });
+});
 
 // Create Job endpoint
 app.post("/tools/create_job", (req: Request, res: Response) => {
