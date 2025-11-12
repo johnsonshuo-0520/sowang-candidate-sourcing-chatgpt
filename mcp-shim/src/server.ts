@@ -30,10 +30,7 @@ app.use((req, res, next) => {
 // ✅ Routes
 // -----------------------------------------------------------------------------
 
-// Health endpoint (always public)
-app.get("/health", (_req: Request, res: Response) => res.json({ ok: true }));
-
-// Root endpoint (public; helps connector creation validation)
+// Public: GET /, /health, /app/*, and preflight/HEAD checks
 app.get("/", (_req, res) => {
   res.json({
              ok: true,
@@ -45,6 +42,20 @@ app.get("/", (_req, res) => {
                source_candidates: "/tools/source_candidates"
              }
            });
+});
+app.get("/health", (_req, res) => res.json({ ok: true }));
+app.head("/", (_req, res) => res.status(200).end());
+app.options("/", (_req, res) => res.status(204).end());
+
+// ✅ Auth ONLY for /tools/*
+app.use((req, res, next) => {
+  if (!req.path.startsWith("/tools/")) return next(); // public for non-tools
+
+  const key = (req.query.key as string) || "";
+  const expected = process.env.MCP_AUTH_TOKEN || "";
+  if (key && expected && key === expected) return next();
+
+  return res.status(401).json({ error: "Unauthorized" });
 });
 
 // Create Job endpoint
