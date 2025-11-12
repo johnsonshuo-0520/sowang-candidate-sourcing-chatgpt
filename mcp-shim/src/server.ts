@@ -7,10 +7,10 @@ import { randomUUID } from "crypto";
 const app = express();
 app.use(helmet());
 app.use(express.json({ limit: "200kb" }));
-app.use(rateLimit({ windowMs: 60_000, max: 60 }));
+app.use(rateLimit({ windowMs: 60_000, max: 120 }));
 
 // -----------------------------------------------------------------------------
-// ✅ Public endpoints for connector validation
+// Public endpoints for connector validation & basic health
 // -----------------------------------------------------------------------------
 app.get("/", (_req, res) => {
   res.json({
@@ -24,30 +24,13 @@ app.get("/", (_req, res) => {
              }
            });
 });
-
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.head("/", (_req, res) => res.sendStatus(200));
 app.options("/", (_req, res) => res.sendStatus(204));
 
 // -----------------------------------------------------------------------------
-// ✅ Protect ONLY /tools/* endpoints with ?key=<token>
+// Tool endpoints (NO AUTH)
 // -----------------------------------------------------------------------------
-app.use((req, res, next) => {
-  if (!req.path.startsWith("/tools/")) return next();
-
-  const key = (req.query.key as string) || "";
-  const expected = process.env.MCP_AUTH_TOKEN || "";
-
-  if (key && expected && key === expected) return next();
-
-  return res.status(401).json({ error: "Unauthorized" });
-});
-
-// -----------------------------------------------------------------------------
-// ✅ Tool endpoints
-// -----------------------------------------------------------------------------
-
-// Create Job
 app.post("/tools/create_job", (req: Request, res: Response) => {
   const { title, location, company, description } = (req.body ?? {}) as {
     title?: string;
@@ -63,7 +46,6 @@ app.post("/tools/create_job", (req: Request, res: Response) => {
   return res.json({ job_id: randomUUID() });
 });
 
-// Source Candidates
 app.post("/tools/source_candidates", (req: Request, res: Response) => {
   const { job_id } = (req.body ?? {}) as { job_id?: string };
   if (!job_id) return res.status(400).json({ error: "job_id required" });
@@ -90,10 +72,9 @@ app.post("/tools/source_candidates", (req: Request, res: Response) => {
 });
 
 // -----------------------------------------------------------------------------
-// ✅ Start server
+// Start server
 // -----------------------------------------------------------------------------
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Mock MCP running on port ${PORT}`);
-  console.log(`Auth key prefix: ${(process.env.MCP_AUTH_TOKEN || "").slice(0, 6)}...`);
+  console.log(`Mock MCP running on port ${PORT} (no auth)`);
 });
