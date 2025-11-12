@@ -1,21 +1,22 @@
-// src/server.ts
-import express from "express";
+import express, { type Request, type Response } from "express";
 import helmet from "helmet";
-import { randomUUID } from "node:crypto";
-import { auth } from "./auth.js"; // <-- note the .js
+import rateLimit from "express-rate-limit";
+import { randomUUID } from "crypto";
+import { auth } from "./auth.js"; // note the .js
 
 const app = express();
 app.use(helmet());
 app.use(express.json({ limit: "200kb" }));
+app.use(rateLimit({ windowMs: 60_000, max: 60 }));
 
-// require bearer token for all routes
+// Require bearer token for all routes
 app.use(auth(true));
 
-// health
-app.get("/health", (_req, res) => res.json({ ok: true }));
+// Health
+app.get("/health", (_req: Request, res: Response) => res.json({ ok: true }));
 
-// tools
-app.post("/tools/create_job", (req, res) => {
+// Tools
+app.post("/tools/create_job", (req: Request, res: Response) => {
   const { title, location, company, description } = (req.body ?? {}) as {
     title?: string; location?: string; company?: string; description?: string;
   };
@@ -25,7 +26,7 @@ app.post("/tools/create_job", (req, res) => {
   return res.json({ job_id: randomUUID() });
 });
 
-app.post("/tools/source_candidates", (req, res) => {
+app.post("/tools/source_candidates", (req: Request, res: Response) => {
   const { job_id } = (req.body ?? {}) as { job_id?: string };
   if (!job_id) return res.status(400).json({ error: "job_id required" });
 
@@ -43,8 +44,8 @@ app.post("/tools/source_candidates", (req, res) => {
     qualifications: [
       "Java/Scala, Kafka, Pinot/Trino",
       "Nearline dedupe & SLA monitors",
-      "Experience with candidate ranking",
-    ],
+      "Experience with candidate ranking"
+    ]
   });
 
   res.json({ candidates: [mk(1), mk(2), mk(3), mk(4), mk(5), mk(6)] });
